@@ -1,0 +1,21 @@
+*** Now run 'gdb' in another window.
+
+xv6 kernel is booting
+
+init: starting sh
+$ task5 HRRN
+dispatch thread#1 at 0: allocated_time=6
+thread #1 is running
+thread#1 finish at 6
+dispatch thread#2 at 6: allocated_time=2
+thread #2 is running
+thread#2 finish at 8
+dispatch thread#4 at 8: allocated_time=4
+thread #4 is running
+thread#4 finish at 12
+dispatch thread#3 at 12: allocated_time=5
+thread #3 is running
+thread#3 finish at 17
+
+exited
+$ qemu-system-riscv64: terminating on signal 15 from pid 3622 (make)
