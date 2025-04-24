@@ -5,6 +5,9 @@
 #include "user/threads_sched.h"
 #include <limits.h>
 #define NULL 0
+#define MAX_PRIORITY 4
+
+struct thread* last_scheduled=NULL;
 
 /* default scheduling algorithm */
 #ifdef THREAD_SCHEDULER_DEFAULT
@@ -76,10 +79,83 @@ struct threads_sched_result schedule_hrrn(struct threads_sched_args args)
 struct threads_sched_result schedule_priority_rr(struct threads_sched_args args) 
 {
     struct threads_sched_result r;
-    // TO DO
+    struct thread *next = NULL;
+    int p=0;
+    int one_thread_in_priority=0;
+    if(last_scheduled){
+        p=last_scheduled->priority;
+        //printf("ls != null\n");
+    }
+    for (;p<MAX_PRIORITY;p++){
+        struct thread *first = NULL;
+        struct thread *pos = NULL;
+        
+
+        if (last_scheduled) { //find last_scheduled in list
+            list_for_each_entry(pos, args.run_queue, thread_list) {
+                if(pos==last_scheduled){
+                    break;
+                }
+            } 
+           // printf("ls && ls=p\n");
+        }
+        //printf("preparing entry \n");
+        pos = list_prepare_entry(pos, args.run_queue, thread_list);
+        list_for_each_entry_continue(pos, args.run_queue, thread_list) {
+            if (pos->priority != p){
+                continue;
+            }else { //find first thread, if there more than, it will be save to next
+                if (first==NULL) first=pos;
+                next=pos; 
+            }
+        }
+        //printf("finished first run\n");
+       
+
+        if(!next){
+            list_for_each_entry(pos, args.run_queue, thread_list) {
+                 
+                if (pos->priority != p){
+                    continue;
+                }else {
+                    if (first==NULL) first=pos;
+                    next=pos; 
+                }
+            }
+            
+        }
+        one_thread_in_priority = (first==next) ? 1 : 0 ;
+        next=first;
+
+        //printf("finished second run\n");
+
+        if(next != NULL) {
+            //printf(" next != NULL and we are breking \n");
+            break;
+        }
+        else  last_scheduled=NULL; //used to ensure pos won't point to an elemnt removed from queue
+
+        //printf("p++\n");
+
+    }
+
+    if(next != NULL){
+        last_scheduled=next;
+        r.scheduled_thread_list_member = &next->thread_list;
+        r.allocated_time = (one_thread_in_priority || next->remaining_time<args.time_quantum) ? 
+                            next->remaining_time : args.time_quantum;
+    } 
+    else {    
+        r.scheduled_thread_list_member = args.run_queue;
+        r.allocated_time = 1;
+        
+    }      
+
     return r;
 }
 #endif
+
+
 
 /* MP3 Part 2 - Real-Time Scheduling*/
 
@@ -145,3 +221,24 @@ struct threads_sched_result schedule_edf_cbs(struct threads_sched_args args)
     return r;
 }
 #endif
+
+/*    for (int p=0;p<MAX_PRIORITY;p++){
+        struct list_head rr;
+        INIT_LIST_HEAD(&rr);
+
+        struct thread *th = NULL;
+        list_for_each_entry(th, args.run_queue, thread_list) {
+        if(th->priority==p)
+            list_add(&th->thread_list,&rr);
+        }
+       // if (list_empty(&rr))
+        //    continue;
+
+        
+        while(!list_empty(&rr)){
+            th = NULL;
+            list_for_each_entry(th, &rr, thread_list) {
+                
+            }
+        }
+*/
