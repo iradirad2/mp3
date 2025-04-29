@@ -59,6 +59,7 @@ void init_thread_cbs(struct thread *t, int budget, int is_hard_rt)
     t->cbs.is_throttled = 0;
     t->cbs.throttled_arrived_time = 0;
     t->cbs.throttle_new_deadline = 0;
+    t->cbs.remaining_time_at_throttle = 0;
 }
 void thread_add_at(struct thread *t, int arrival_time)
 {
@@ -66,6 +67,7 @@ void thread_add_at(struct thread *t, int arrival_time)
     new_entry->thrd = t;
     new_entry->release_time = arrival_time;
     t->arrival_time = arrival_time;
+
     // t->remaining_time = t->processing_time;
     if (t->is_real_time) {
         t->current_deadline = arrival_time + t->deadline;
@@ -78,7 +80,13 @@ void __release()
     struct release_queue_entry *cur, *nxt;
     list_for_each_entry_safe(cur, nxt, &release_queue, thread_list) {
         if (threading_system_time >= cur->release_time) {
-            cur->thrd->remaining_time = cur->thrd->processing_time;
+            if(cur->thrd->cbs.is_throttled){
+                cur->thrd->cbs.is_throttled = 0;
+                cur->thrd->cbs.remaining_budget = cur->thrd->cbs.budget;
+                cur->thrd->remaining_time = cur->thrd->cbs.remaining_time_at_throttle;
+            }else{
+                cur->thrd->remaining_time = cur->thrd->processing_time;
+            }
             cur->thrd->current_deadline = cur->release_time + cur->thrd->deadline;
             list_add_tail(&cur->thrd->thread_list, &run_queue);
             list_del(&cur->thread_list);
@@ -200,9 +208,11 @@ void __dispatch()
         fprintf(2, "[FATAL] allocated_time is negative\n");
         exit(1);
     }
-
+    
     struct thread *current_thread = list_entry(current, struct thread, thread_list);
-    if (current_thread->is_real_time && allocated_time == 0) {
+    printf("    my print:dispatch thread#%d at %d: allocated_time=%d, remaining_time= %d \n", current_thread->ID, threading_system_time, allocated_time,current_thread->remaining_time);
+
+    if (current_thread->is_real_time && allocated_time == 0 && current_thread->cbs.is_hard_rt) {
         printf("thread#%d misses a deadline at %d in dispatch\n", current_thread->ID, current_thread->current_deadline);
         exit(0);
     }

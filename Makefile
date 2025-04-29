@@ -95,7 +95,9 @@ $U/initcode: $U/initcode.S
 tags: $(OBJS) _init
 	etags *.S *.c
 
-ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o $U/setjmp.o $U/threads_sched.o
+# ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o $U/setjmp.o $U/threads_sched.o
+ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o $U/setjmp.o $U/threads.o $U/threads_sched.o
+
 
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^

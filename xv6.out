@@ -3,18 +3,21 @@
 xv6 kernel is booting
 
 init: starting sh
-$ rttask5 DM
-dispatch thread#2 at 0: allocated_time=1
-dispatch thread#3 at 1: allocated_time=1
-dispatch thread#1 at 2: allocated_time=3
-thread#1 finish one cycle at 5: 1 cycles left
-dispatch thread#3 at 5: allocated_time=2
-thread#3 finish one cycle at 7: 1 cycles left
-dispatch thread#2 at 7: allocated_time=3
-dispatch thread#3 at 10: allocated_time=1
-dispatch thread#1 at 11: allocated_time=3
-thread#1 finish one cycle at 14: 0 cycles left
-dispatch thread#3 at 14: allocated_time=2
-thread#3 finish one cycle at 16: 0 cycles left
-thread#2 misses a deadline at 15 in dispatch
-$ qemu-system-riscv64: terminating on signal 15 from pid 2119 (make)
+$ rttask4 EDF_CBS
+dispatch thread#1 at 0: allocated_time=10
+thread#1 finish one cycle at 10: 1 cycles left
+dispatch thread#2 at 10: allocated_time=8
+thread#2 finish one cycle at 18: 1 cycles left
+dispatch thread#3 at 18: allocated_time=2
+dispatch thread#2 at 20: allocated_time=8
+thread#2 finish one cycle at 28: 0 cycles left
+dispatch thread#1 at 28: allocated_time=10
+thread#1 finish one cycle at 38: 0 cycles left
+dispatch thread#3 at 38: allocated_time=13
+thread#3 finish one cycle at 51: 1 cycles left
+run_queue is empty, sleep for 7 ticks
+dispatch thread#3 at 58: allocated_time=15
+thread#3 finish one cycle at 73: 0 cycles left
+
+exited
+$ qemu-system-riscv64: terminating on signal 15 from pid 7246 (make)

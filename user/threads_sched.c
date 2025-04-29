@@ -161,10 +161,12 @@ struct threads_sched_result schedule_priority_rr(struct threads_sched_args args)
 
 #if defined(THREAD_SCHEDULER_EDF_CBS) || defined(THREAD_SCHEDULER_DM)
 static struct thread *__check_deadline_miss(struct list_head *run_queue, int current_time)
-{
+{   
+    
     struct thread *th = NULL;
     struct thread *thread_missing_deadline = NULL;
     list_for_each_entry(th, run_queue, thread_list) {
+       // printf("    checking thread %d, its current deadline at time %d is %d\n", th->ID,current_time, th->current_deadline);
         if (th->current_deadline <= current_time) {
             if (thread_missing_deadline == NULL)
                 thread_missing_deadline = th;
@@ -264,58 +266,106 @@ static int __edf_thread_cmp(struct thread *a, struct thread *b)
 //  EDF_CBS scheduler
 struct threads_sched_result schedule_edf_cbs(struct threads_sched_args args)
 {
-    __check_deadline_miss(args.run_queue,args.current_time);
+   
+   
     struct threads_sched_result r;
     struct thread *next = NULL;
     struct release_queue_entry *awating_rqe = NULL;
     struct release_queue_entry *h_awating_rqe = NULL;
     struct thread *th = NULL;
 
+    
     struct thread *thread_missing_deadline = __check_deadline_miss(args.run_queue,args.current_time);
     if(thread_missing_deadline){
-        printf("     we are very here \n");
-        
+        printf("     we have found a missing thread and its thread %d \n", thread_missing_deadline->ID);
+        if(thread_missing_deadline->cbs.is_hard_rt){
             r.scheduled_thread_list_member = &thread_missing_deadline->thread_list;
             r.allocated_time = 0;     
             return r;
-        
+        }else{
+            thread_missing_deadline->current_deadline = args.current_time + thread_missing_deadline->period;
+            thread_missing_deadline->cbs.remaining_budget = thread_missing_deadline->cbs.budget;
+            thread_missing_deadline->cbs.is_throttled=0;
+        }
+             
             //thread_missing_deadline->curr_deadline = args.current_time+thread_missing_deadline->period;
             
         
     }
 
-
+    //find next hard thread
+    /*
     list_for_each_entry(th, args.run_queue, thread_list) {
-        if (next == NULL || th->current_deadline < next->current_deadline || 
-            (th->current_deadline == next->current_deadline && th->ID < next->ID) )
-        next = th;
+        if (next == NULL &&  th->cbs.is_hard_rt)
+            next = th;
+        else if(th->cbs.is_hard_rt && th->current_deadline < next->current_deadline)
+            next = th;
+        else if (th->cbs.is_hard_rt && th->current_deadline == next->current_deadline && th->ID < next->ID)
+            next = th;
     }
+*/
+    // if no hard th, find soft th
+    if(!next){
+        list_for_each_entry(th, args.run_queue, thread_list) {
+            printf("     we're looking at thread %d and is_throt is %d\n", th->ID, th->cbs.is_throttled);
+            if (next == NULL)
+                next = th;
+            else if(th->current_deadline < next->current_deadline)
+                next = th;
+            else if (th->current_deadline == next->current_deadline && th->ID < next->ID)
+                next = th;
+        }
+    }
+    printf("    next thread will be no.%d\n", next->ID);
+
+    if(next && next->cbs.is_throttled){
+        // return throttled thread to release queue
+
+        next->remaining_time=0;
+
+        //__rt_finish_current();
+        r.scheduled_thread_list_member = &next->thread_list;
+        r.allocated_time = 0;     
+        return r;
+        
+        //search for an un throttled thread
+        next=NULL;
+        th=NULL;
+        list_for_each_entry(th, args.run_queue, thread_list) {
+            printf("     we're looking at thread %d and is_throt is %d\n", th->ID, th->cbs.is_throttled);
+            if (next == NULL && !th->cbs.is_throttled)
+                next = th;
+            else if(th->current_deadline < next->current_deadline && !th->cbs.is_throttled)
+                next = th;
+            else if (th->current_deadline == next->current_deadline && th->ID < next->ID && !th->cbs.is_throttled)
+                next = th;
+        } 
+    }      
+    
 
 
     struct release_queue_entry *ath=NULL;
+    list_for_each_entry(ath, args.release_queue, thread_list) {// find thread in release queue witheralist dealine
+        if (awating_rqe == NULL) 
+            awating_rqe = ath;  
+        else if(awating_rqe->release_time > ath->release_time)
+            awating_rqe = ath;
+        else if(awating_rqe->release_time == ath->release_time &&
+                awating_rqe->thrd->current_deadline > ath->thrd->current_deadline) 
+            awating_rqe = ath;  
+    }
 
-
-        list_for_each_entry(ath, args.release_queue, thread_list) {// find thread in release queue witheralist dealine
-            if (awating_rqe == NULL) 
-                awating_rqe = ath;  
-            else if(awating_rqe->release_time > ath->release_time)
-                awating_rqe = ath;
-            else if(awating_rqe->release_time == ath->release_time &&
-                    awating_rqe->thrd->current_deadline > ath->thrd->current_deadline) 
-                awating_rqe = ath;  
-        }
-
-        list_for_each_entry(ath, args.release_queue, thread_list) {// find hard thread in release queue with highest priority
-            if (h_awating_rqe == NULL && ath->thrd->cbs.is_hard_rt) 
+    list_for_each_entry(ath, args.release_queue, thread_list) {// find hard thread in release queue with highest priority
+        if (h_awating_rqe == NULL && ath->thrd->cbs.is_hard_rt) 
+            h_awating_rqe = ath;  
+        else if(ath->thrd->cbs.is_hard_rt && 
+                h_awating_rqe->release_time > ath->release_time)
+            h_awating_rqe = ath;
+        else if(ath->thrd->cbs.is_hard_rt && 
+                h_awating_rqe->release_time == ath->release_time &&
+                h_awating_rqe->thrd->current_deadline > ath->thrd->current_deadline) 
                 h_awating_rqe = ath;  
-            else if(ath->thrd->cbs.is_hard_rt && 
-                    h_awating_rqe->release_time > ath->release_time)
-                h_awating_rqe = ath;
-            else if(ath->thrd->cbs.is_hard_rt && 
-                    h_awating_rqe->release_time == ath->release_time &&
-                    h_awating_rqe->thrd->current_deadline > ath->thrd->current_deadline) 
-                    h_awating_rqe = ath;  
-        }
+    }
 
 
 
@@ -327,6 +377,7 @@ struct threads_sched_result schedule_edf_cbs(struct threads_sched_args args)
     int time_untill_awaiting_thread = 0;
     int preempt_thread_flag=0;
     if(awating_rqe){
+        printf("    awating_rqe->thrd->ID is %d",awating_rqe->thrd->ID );
         time_untill_awaiting_thread=awating_rqe->release_time-args.current_time; 
         if (next){
             if(time_untill_awaiting_thread < next->remaining_time){
@@ -337,7 +388,7 @@ struct threads_sched_result schedule_edf_cbs(struct threads_sched_args args)
                 else if(next->current_deadline == awating_rqe->thrd->current_deadline && 
                         next->ID > awating_rqe->thrd->ID)
                     preempt_thread_flag=1;
-                
+  
             }
         }
     }
@@ -346,40 +397,39 @@ struct threads_sched_result schedule_edf_cbs(struct threads_sched_args args)
       
 
     //CBS mechanism
-    if(next && !next->cbs.is_hard_rt){//only applys for soft threads
-        printf("    cbs meachnism: curr_deadline is %d, curr_time is %d, cbs dead line is %d\n",
-            next->current_deadline,args.current_time,next->cbs.throttle_new_deadline);
-
-        
+    if(next && !next->cbs.is_hard_rt){
         int time_until_deadline= next->current_deadline-args.current_time;
-        if (time_until_deadline <= 0){  
-            //next->current_deadline += next->period;
-           //next->cbs.remaining_budget=next->cbs.budget;
-            printf("we are here\n");
-        }
+
         if(next->period * next->cbs.remaining_budget > next->cbs.budget * time_until_deadline){
-            next->current_deadline = next->current_deadline + next->period;
-           // next->cbs.remaining_budget = next->cbs.budget;
-           //next->cbs.is_throttled=1;
+            next->current_deadline = args.current_time + next->period;
+            next->cbs.remaining_budget = next->cbs.budget;
         }
 
-            
+        if(next->remaining_time > next->cbs.remaining_budget){
+            next->cbs.is_throttled=1;
+            next->cbs.throttle_new_deadline=next->current_deadline;
+            next->cbs.remaining_time_at_throttle = next->remaining_time;
+        }
+      
     }
 
     if (next != NULL) {
         r.scheduled_thread_list_member = &next->thread_list;
         if(awating_rqe && preempt_thread_flag)
             r.allocated_time = time_untill_awaiting_thread;
-        else
-            r.allocated_time = next->remaining_time;
+        else{
+            // if we're here and next is throttled, the task will be throttled after this dispatch
+            r.allocated_time = (next->cbs.is_throttled) ? next->cbs.remaining_budget : next->remaining_time;
+            }
 
     } else {
         r.scheduled_thread_list_member = args.run_queue;
-        printf("time_untill_awaiting_thread = %d\n",time_untill_awaiting_thread);
         r.allocated_time = (awating_rqe != NULL) ? time_untill_awaiting_thread : 1 ;
+
     }
 
-
+   // printf("    second run\n");
+   // __check_deadline_miss(args.run_queue,args.current_time+8);
     return r;
 
    
@@ -433,4 +483,18 @@ struct threads_sched_result schedule_edf_cbs(struct threads_sched_args args)
             i++;
         }
         time_untill_awaiting_thread = args.current_time - awating_thread->arrival_time + (i+1)*awating_thread->period;
-        */
+    
+        struct thread *throttled_thread = NULL;
+        th=NULL;
+        if(!next){
+            list_for_each_entry(th, args.run_queue, thread_list) {
+                printf("     we're looking at thread %d and is_throt is %d\n", th->ID, th->cbs.is_throttled);
+                if (throttled_thread == NULL && th->cbs. is_throttled)
+                throttled_thread = th;
+                else if(th->current_deadline < throttled_thread->current_deadline && th->cbs. is_throttled)
+                throttled_thread = th;
+                else if (th->current_deadline == throttled_thread->current_deadline && th->ID < throttled_thread->ID && th->cbs. is_throttled)
+                throttled_thread = th;
+            }
+        }
+            */

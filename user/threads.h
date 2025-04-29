@@ -44,6 +44,7 @@ struct thread {
         int is_throttled;             // 1 if the thread is currently throttled
         int throttled_arrived_time;   // Time reset remaining budget
         int throttle_new_deadline;    // New deadline assigned after throttling
+        int remaining_time_at_throttle;
     } cbs;
 };
 
@@ -63,5 +64,7 @@ void thread_add_at(struct thread *t, int arrival_time);
 void thread_exit(void);
 void thread_start_threading();
 void thread_add_direct(struct thread *t);
+void __rt_finish_current();
+
 
 #endif // THREADS_H_
