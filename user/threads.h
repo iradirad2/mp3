@@ -44,7 +44,6 @@ struct thread {
         int is_throttled;             // 1 if the thread is currently throttled
         int throttled_arrived_time;   // Time reset remaining budget
         int throttle_new_deadline;    // New deadline assigned after throttling
-        int remaining_time_at_throttle;
     } cbs;
 };
 
